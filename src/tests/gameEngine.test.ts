@@ -7,6 +7,7 @@ import {
   addThrow,
   confirmTurn,
   editTurnAndRecalculate,
+  undoLastCompletedTurn,
 } from '../engine/game/gameEngine';
 
 const player1: Player = {
@@ -260,5 +261,30 @@ describe('Game Engine Match Progression & Recalculation', () => {
     expect(recalculated.players[0].currentScore).toBe(401);
     // Anissa's score should remain 441
     expect(recalculated.players[1].currentScore).toBe(441);
+  });
+
+  it('correctly reverts a confirmed visit with undoLastCompletedTurn', () => {
+    let match = createMatch([player1, player2], baseSettings);
+
+    // Player 1 throws 60 + 60 + 60 = 180 and confirms
+    match = addThrow(match, createThrow(20, 3));
+    match = addThrow(match, createThrow(20, 3));
+    match = addThrow(match, createThrow(20, 3));
+    match = confirmTurn(match);
+
+    expect(match.players[0].currentScore).toBe(321);
+    expect(match.activePlayerIndex).toBe(1); // turned to player 2
+    expect(match.currentTurnDarts.length).toBe(0);
+
+    // User realizes they made a mistake and reverts the visit
+    const reverted = undoLastCompletedTurn(match);
+
+    // Score reverted back to 501
+    expect(reverted.players[0].currentScore).toBe(501);
+    // Active player returned to Player 1
+    expect(reverted.activePlayerIndex).toBe(0);
+    // The 3 darts are restored into currentTurnDarts so user can edit or undo
+    expect(reverted.currentTurnDarts.length).toBe(3);
+    expect(reverted.currentTurnDarts[0].label).toBe('T20');
   });
 });

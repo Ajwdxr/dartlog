@@ -69,6 +69,7 @@ export default function DartlogApp() {
         onThrow={inputThrow}
         onUndo={undoLastDart}
         onConfirm={confirmActiveTurn}
+        onEditTurn={(turnId, newDarts) => editHistoricalTurn(turnId, newDarts)}
         onToggleSound={toggleSound}
         onExit={abandonMatch}
       />

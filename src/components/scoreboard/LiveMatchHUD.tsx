@@ -17,7 +17,10 @@ import {
   Disc,
   AlertTriangle,
   Trophy,
+  Edit3,
+  X,
 } from 'lucide-react';
+import { createThrow } from '@/engine/scoring/scoringEngine';
 
 interface LiveMatchHUDProps {
   match: Match;
@@ -25,6 +28,7 @@ interface LiveMatchHUDProps {
   onThrow: (val: number, mult: any) => void;
   onUndo: () => void;
   onConfirm: () => void;
+  onEditTurn?: (turnId: string, newDarts: Throw[]) => void;
   onToggleSound: () => void;
   onExit: () => void;
 }
@@ -35,10 +39,13 @@ export const LiveMatchHUD: React.FC<LiveMatchHUDProps> = ({
   onThrow,
   onUndo,
   onConfirm,
+  onEditTurn,
   onToggleSound,
   onExit,
 }) => {
   const [inputMode, setInputMode] = useState<'board' | 'keypad' | 'both'>('both');
+  const [editingTurn, setEditingTurn] = useState<any>(null);
+  const [editInput, setEditInput] = useState<string>('');
 
   const activeIdx = match.activePlayerIndex;
   const activePlayer = match.players[activeIdx];
@@ -303,12 +310,25 @@ export const LiveMatchHUD: React.FC<LiveMatchHUDProps> = ({
           <div className="flex items-center gap-2 w-full md:w-auto justify-end">
             <button
               type="button"
-              disabled={darts.length === 0}
+              disabled={darts.length === 0 && match.historyTimeline.length === 0}
               onClick={onUndo}
-              className="flex-1 md:flex-none px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs border border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1 active:scale-95 transition-all"
+              className={`flex-1 md:flex-none px-3 py-2 rounded font-bold text-xs border flex items-center justify-center gap-1.5 active:scale-95 transition-all ${
+                darts.length > 0
+                  ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border-zinc-700'
+                  : match.historyTimeline.length > 0
+                  ? 'bg-amber-950/80 hover:bg-amber-900 border-amber-600/70 text-amber-300 shadow-sm'
+                  : 'bg-zinc-900 text-zinc-600 border-zinc-800 cursor-not-allowed opacity-40'
+              }`}
+              title={darts.length > 0 ? 'Undo last thrown dart' : 'Revert the last confirmed visit'}
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>UNDO DART</span>
+              <span>
+                {darts.length > 0
+                  ? 'UNDO DART'
+                  : match.historyTimeline.length > 0
+                  ? `UNDO VISIT (${match.historyTimeline[0].isBust ? 'BUST' : `+${match.historyTimeline[0].total}`})`
+                  : 'UNDO'}
+              </span>
             </button>
 
             <button
@@ -387,23 +407,113 @@ export const LiveMatchHUD: React.FC<LiveMatchHUDProps> = ({
                 return (
                   <div
                     key={turn.id}
-                    className="flex items-center gap-1.5 font-mono bg-zinc-900/90 border border-zinc-800 px-2 py-1 rounded shrink-0 text-[11px]"
+                    className="flex items-center gap-1.5 font-mono bg-zinc-900/90 border border-zinc-800 px-2.5 py-1 rounded shrink-0 text-[11px] group"
                   >
                     <span className="font-bold text-zinc-300">
                       {turnPlayer?.player.name || 'Player'}:
                     </span>
                     <span className="text-emerald-400 font-bold">
-                      {turn.isBust ? 'BUST' : turn.total}
+                      {turn.isBust ? 'BUST' : `+${turn.total}`}
                     </span>
-                    <span className="text-zinc-600">
+                    <span className="text-zinc-500">
                       ({turn.darts.map((d) => d.label).join(' · ')})
                     </span>
+                    {onEditTurn && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingTurn(turn);
+                          setEditInput(turn.darts.map((d: any) => d.label).join(', '));
+                        }}
+                        className="text-zinc-600 hover:text-amber-400 p-0.5 transition-colors ml-0.5"
+                        title="Edit this visit"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
         </footer>
+      )}
+
+      {/* Inline Visit Edit Modal */}
+      {editingTurn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="bg-[#12161f] border border-amber-600/50 rounded-xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+              <span className="font-mono font-bold text-xs uppercase text-amber-400 tracking-wider">
+                EDIT VISIT
+              </span>
+              <button
+                type="button"
+                onClick={() => setEditingTurn(null)}
+                className="text-zinc-500 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-zinc-400">
+                Player: <strong className="text-white uppercase">{match.players.find((p) => p.player.id === editingTurn.playerId)?.player.name}</strong>
+              </span>
+              <span className="text-[11px] text-zinc-500">
+                Enter darts separated by comma (e.g. <code className="text-emerald-400">T20, 20, D10</code> or <code className="text-emerald-400">MISS, BULL, 25</code>):
+              </span>
+              <input
+                type="text"
+                autoFocus
+                value={editInput}
+                onChange={(e) => setEditInput(e.target.value)}
+                className="bg-black border border-amber-500/70 font-mono font-bold text-sm text-white px-3 py-2 rounded focus:outline-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setEditingTurn(null)}
+                className="flex-1 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs"
+              >
+                CANCEL
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!onEditTurn) return;
+                  const labels = editInput.split(',').map((s) => s.trim().toUpperCase());
+                  const parsedDarts: any[] = [];
+                  for (const lbl of labels) {
+                    if (!lbl) continue;
+                    if (lbl === 'BULL') parsedDarts.push(createThrow(25, 2));
+                    else if (lbl === '25') parsedDarts.push(createThrow(25, 1));
+                    else if (lbl === 'MISS' || lbl === '0') parsedDarts.push(createThrow(0, 0));
+                    else if (lbl.startsWith('T')) {
+                      const val = parseInt(lbl.substring(1), 10);
+                      if (!isNaN(val)) parsedDarts.push(createThrow(val, 3));
+                    } else if (lbl.startsWith('D')) {
+                      const val = parseInt(lbl.substring(1), 10);
+                      if (!isNaN(val)) parsedDarts.push(createThrow(val, 2));
+                    } else {
+                      const val = parseInt(lbl, 10);
+                      if (!isNaN(val)) parsedDarts.push(createThrow(val, 1));
+                    }
+                  }
+                  if (parsedDarts.length > 0) {
+                    onEditTurn(editingTurn.id, parsedDarts);
+                  }
+                  setEditingTurn(null);
+                }}
+                className="flex-1 py-2 rounded bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs uppercase"
+              >
+                SAVE & RECALCULATE
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

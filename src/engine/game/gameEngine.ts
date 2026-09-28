@@ -386,3 +386,36 @@ export function editTurnAndRecalculate(
 
   return freshMatch;
 }
+
+/**
+ * Undoes the most recently confirmed visit/turn, reverting the match state
+ * and restoring the visit's darts back into currentTurnDarts for editing.
+ */
+export function undoLastCompletedTurn(match: Match): Match {
+  if (match.historyTimeline.length === 0) return match;
+
+  const lastTurn = match.historyTimeline[0];
+  const remainingTimeline = match.historyTimeline.slice(1);
+
+  // Chronologically replay from start without the last turn
+  const rawPlayers: Player[] = match.players.map((p) => p.player);
+  let freshMatch = createMatch(rawPlayers, match.settings);
+  freshMatch.id = match.id;
+  freshMatch.startTime = match.startTime;
+
+  const chronologicalTurns = [...remainingTimeline].reverse();
+
+  for (const turn of chronologicalTurns) {
+    freshMatch = {
+      ...freshMatch,
+      currentTurnDarts: turn.darts,
+    };
+    freshMatch = confirmTurn(freshMatch);
+  }
+
+  // Restore the last turn's darts into currentTurnDarts so the player can edit/adjust
+  return {
+    ...freshMatch,
+    currentTurnDarts: lastTurn.darts,
+  };
+}

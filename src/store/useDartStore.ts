@@ -16,6 +16,7 @@ import {
   createMatch,
   editTurnAndRecalculate,
   removeLastThrow,
+  undoLastCompletedTurn,
 } from '@/engine/game/gameEngine';
 import { createThrow } from '@/engine/scoring/scoringEngine';
 import { soundFX } from '@/lib/soundEffects';
@@ -64,6 +65,7 @@ interface DartState {
   createNewMatch: (selectedPlayers: Player[], settings: MatchSettings) => void;
   inputThrow: (value: number, multiplier: DartMultiplier) => void;
   undoLastDart: () => void;
+  undoLastTurn: () => void;
   confirmActiveTurn: () => void;
   abandonMatch: () => void;
   editHistoricalTurn: (turnId: string, newDarts: Throw[]) => void;
@@ -239,7 +241,24 @@ export const useDartStore = create<DartState>((set, get) => ({
   undoLastDart: () => {
     const { activeMatch } = get();
     if (!activeMatch) return;
-    const updated = removeLastThrow(activeMatch);
+
+    if (activeMatch.currentTurnDarts.length > 0) {
+      const updated = removeLastThrow(activeMatch);
+      soundFX.playClick();
+      set({ activeMatch: updated });
+      storage.saveActiveMatch(updated);
+    } else if (activeMatch.historyTimeline.length > 0) {
+      const updated = undoLastCompletedTurn(activeMatch);
+      soundFX.playClick();
+      set({ activeMatch: updated });
+      storage.saveActiveMatch(updated);
+    }
+  },
+
+  undoLastTurn: () => {
+    const { activeMatch } = get();
+    if (!activeMatch || activeMatch.historyTimeline.length === 0) return;
+    const updated = undoLastCompletedTurn(activeMatch);
     soundFX.playClick();
     set({ activeMatch: updated });
     storage.saveActiveMatch(updated);
