@@ -40,6 +40,9 @@ export default function DartlogApp() {
     playTournamentMatch,
     toggleSound,
     setSelectedSummaryMatch,
+    cloudSyncStatus,
+    cloudConfigured,
+    triggerCloudSync,
   } = useDartStore();
 
   // Initialize store and local IndexedDB on mount
@@ -158,6 +161,9 @@ export default function DartlogApp() {
       activePlayer={activeUser}
       recentMatch={mostRecentMatch}
       soundEnabled={soundEnabled}
+      cloudSyncStatus={cloudSyncStatus}
+      cloudConfigured={cloudConfigured}
+      onTriggerSync={triggerCloudSync}
       onQuickMatch={startQuickMatch}
       onCreateMatch={() => setView('match_create')}
       onPractice={() => setView('practice')}

@@ -21,6 +21,7 @@ import { createThrow } from '@/engine/scoring/scoringEngine';
 import { soundFX } from '@/lib/soundEffects';
 import { storage } from '@/lib/storage';
 import { SEED_PLAYERS, createSampleCompletedMatch } from '@/lib/seedData';
+import { syncEngine } from '@/lib/supabase/sync';
 import confetti from 'canvas-confetti';
 
 export type ScreenView =
@@ -44,6 +45,8 @@ interface DartState {
   voiceEnabled: boolean;
   selectedSummaryMatch: Match | null;
   selectedPlayerProfile: Player | null;
+  cloudSyncStatus: 'idle' | 'synced' | 'syncing' | 'offline';
+  cloudConfigured: boolean;
 
   // Actions
   setView: (view: ScreenView) => void;
@@ -51,6 +54,7 @@ interface DartState {
   toggleVoice: () => void;
   setSelectedSummaryMatch: (m: Match | null) => void;
   setSelectedPlayerProfile: (p: Player | null) => void;
+  triggerCloudSync: () => Promise<void>;
 
   // Initialization
   initStore: () => Promise<void>;
@@ -95,6 +99,8 @@ export const useDartStore = create<DartState>((set, get) => ({
   voiceEnabled: false,
   selectedSummaryMatch: null,
   selectedPlayerProfile: null,
+  cloudSyncStatus: 'idle',
+  cloudConfigured: syncEngine.isAvailable(),
 
   setView: (view) => set({ currentView: view }),
 
@@ -110,6 +116,23 @@ export const useDartStore = create<DartState>((set, get) => ({
 
   setSelectedSummaryMatch: (match) => set({ selectedSummaryMatch: match }),
   setSelectedPlayerProfile: (player) => set({ selectedPlayerProfile: player }),
+
+  triggerCloudSync: async () => {
+    if (!syncEngine.isAvailable()) return;
+    set({ cloudSyncStatus: 'syncing' });
+    const res = await syncEngine.syncAll();
+    if (res.synced) {
+      const refreshedPlayers = await storage.getPlayers();
+      const refreshedMatches = await storage.getMatchHistory();
+      set({
+        players: refreshedPlayers,
+        matchHistory: refreshedMatches,
+        cloudSyncStatus: 'synced',
+      });
+    } else {
+      set({ cloudSyncStatus: 'offline' });
+    }
+  },
 
   initStore: async () => {
     try {
@@ -137,7 +160,13 @@ export const useDartStore = create<DartState>((set, get) => ({
         matchHistory: loadedHistory,
         activeMatch: activeMatch || null,
         tournaments: tournaments || [],
+        cloudConfigured: syncEngine.isAvailable(),
       });
+
+      // Background cloud sync if configured
+      if (syncEngine.isAvailable()) {
+        get().triggerCloudSync();
+      }
     } catch {
       // Fallback in-memory
       set({
@@ -251,6 +280,7 @@ export const useDartStore = create<DartState>((set, get) => ({
     if (updated.status === 'completed') {
       storage.clearActiveMatch();
       storage.saveCompletedMatch(updated);
+      syncEngine.pushMatch(updated).catch(() => {});
       set((state) => ({
         activeMatch: updated,
         matchHistory: [updated, ...state.matchHistory],
@@ -313,6 +343,7 @@ export const useDartStore = create<DartState>((set, get) => ({
     };
 
     await storage.savePlayer(newPlayer);
+    syncEngine.pushPlayer(newPlayer).catch(() => {});
     set((state) => ({
       players: [...state.players, newPlayer],
     }));
@@ -410,6 +441,7 @@ export const useDartStore = create<DartState>((set, get) => ({
     if (activePractice) {
       const finalized = { ...activePractice, completedAt: Date.now() };
       storage.savePracticeSession(finalized);
+      syncEngine.pushPractice(finalized).catch(() => {});
     }
     set({ activePractice: null, currentView: 'home' });
   },
@@ -472,6 +504,7 @@ export const useDartStore = create<DartState>((set, get) => ({
     };
 
     storage.saveTournament(tourney);
+    syncEngine.pushTournament(tourney).catch(() => {});
     set((state) => ({
       tournaments: [tourney, ...state.tournaments],
       currentView: 'tournament',

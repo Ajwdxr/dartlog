@@ -8,6 +8,9 @@ interface HomeScreenProps {
   activePlayer: Player;
   recentMatch: Match | null;
   soundEnabled: boolean;
+  cloudSyncStatus?: 'idle' | 'synced' | 'syncing' | 'offline';
+  cloudConfigured?: boolean;
+  onTriggerSync?: () => void;
   onQuickMatch: () => void;
   onCreateMatch: () => void;
   onPractice: () => void;
@@ -21,6 +24,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   activePlayer,
   recentMatch,
   soundEnabled,
+  cloudSyncStatus = 'offline',
+  cloudConfigured = false,
+  onTriggerSync,
   onQuickMatch,
   onCreateMatch,
   onPractice,
@@ -223,11 +229,43 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         )}
       </div>
 
-      {/* Footer System Status */}
-      <footer className="text-center font-mono text-[11px] text-zinc-400 py-3 border-t border-zinc-900 flex items-center justify-center gap-4">
+      {/* Footer System Status & Supabase Sync */}
+      <footer className="text-center font-mono text-[11px] text-zinc-400 py-3 border-t border-zinc-900 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
         <span>OFFLINE READY (PWA)</span>
         <span>·</span>
         <span>INDEXEDDB SYNCED</span>
+        <span>·</span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`w-2 h-2 rounded-full ${
+              cloudConfigured
+                ? cloudSyncStatus === 'synced'
+                  ? 'bg-emerald-400'
+                  : cloudSyncStatus === 'syncing'
+                  ? 'bg-amber-400 animate-ping'
+                  : 'bg-zinc-400'
+                : 'bg-zinc-600'
+            }`}
+          />
+          <span className="text-zinc-400">
+            {cloudConfigured
+              ? cloudSyncStatus === 'synced'
+                ? 'SUPABASE CLOUD SYNCED'
+                : cloudSyncStatus === 'syncing'
+                ? 'SYNCING TO CLOUD...'
+                : 'SUPABASE READY'
+              : 'SUPABASE: LOCAL ONLY'}
+          </span>
+          {cloudConfigured && (
+            <button
+              type="button"
+              onClick={onTriggerSync}
+              className="ml-1 px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] uppercase font-bold"
+            >
+              SYNC NOW
+            </button>
+          )}
+        </div>
         <span>·</span>
         <span>DARTLOG V1.0</span>
       </footer>
