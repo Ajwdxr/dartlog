@@ -1,0 +1,18 @@
+{
+  "name": "DARTLOG - Professional Dart Scoring System",
+  "short_name": "DARTLOG",
+  "description": "Throw. Track. Checkout. Professional sports darts scoring device and live HUD.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090b0e",
+  "theme_color": "#090b0e",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
